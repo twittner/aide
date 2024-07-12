@@ -644,22 +644,20 @@ impl<'t> TransformOperation<'t> {
         R: OperationOutput,
         F: FnOnce(TransformResponse<R::Inner>) -> TransformResponse<R::Inner>,
     {
-        in_context(|ctx| {
-            if let Some(mut res) = R::operation_response(ctx, self.operation) {
-                let responses = self.operation.responses.get_or_insert_with(Default::default);
-                if responses.default.is_none() {
-                    let t = transform(TransformResponse::new(&mut res));
+        if let Some(mut res) = in_context(|ctx| R::operation_response(ctx, self.operation)) {
+            let responses = self.operation.responses.get_or_insert_with(Default::default);
+            if responses.default.is_none() {
+                let t = transform(TransformResponse::new(&mut res));
 
-                    if !t.hidden {
-                        responses.default = Some(ReferenceOr::Item(res));
-                    }
-                } else {
-                    ctx.error(Error::DefaultResponseExists);
+                if !t.hidden {
+                    responses.default = Some(ReferenceOr::Item(res));
                 }
             } else {
-                tracing::debug!(type_name = type_name::<R>(), "no response info of type");
+                in_context(|ctx| ctx.error(Error::DefaultResponseExists));
             }
-        });
+        } else {
+            tracing::debug!(type_name = type_name::<R>(), "no response info of type");
+        }
 
         self
     }
@@ -708,24 +706,22 @@ impl<'t> TransformOperation<'t> {
             self.operation.responses = Some(Default::default());
         }
 
-        in_context(|ctx| {
-            if let Some(mut res) = R::operation_response(ctx, self.operation) {
-                let t = transform(TransformResponse::new(&mut res));
+        if let Some(mut res) = in_context(|ctx| R::operation_response(ctx, self.operation)) {
+            let t = transform(TransformResponse::new(&mut res));
 
-                let responses = self.operation.responses.as_mut().unwrap();
-                if !t.hidden {
-                    let existing = responses
-                        .responses
-                        .insert(StatusCode::Code(N), ReferenceOr::Item(res))
-                        .is_some();
-                    if existing {
-                        ctx.error(Error::ResponseExists(StatusCode::Code(N)));
-                    };
-                }
-            } else {
-                tracing::debug!(type_name = type_name::<R>(), "no response info of type");
+            let responses = self.operation.responses.as_mut().unwrap();
+            if !t.hidden {
+                let existing = responses
+                    .responses
+                    .insert(StatusCode::Code(N), ReferenceOr::Item(res))
+                    .is_some();
+                if existing {
+                    in_context(|ctx| ctx.error(Error::ResponseExists(StatusCode::Code(N))))
+                };
             }
-        });
+        } else {
+            tracing::debug!(type_name = type_name::<R>(), "no response info of type");
+        }
 
         self
     }
@@ -778,24 +774,22 @@ impl<'t> TransformOperation<'t> {
             self.operation.responses = Some(Default::default());
         }
 
-        in_context(|ctx| {
-            if let Some(mut res) = R::operation_response(ctx, self.operation) {
-                let t = transform(TransformResponse::new(&mut res));
+        if let Some(mut res) = in_context(|ctx| R::operation_response(ctx, self.operation)) {
+            let t = transform(TransformResponse::new(&mut res));
 
-                let responses = self.operation.responses.as_mut().unwrap();
-                if !t.hidden {
-                    let existing = responses
-                        .responses
-                        .insert(StatusCode::Range(N), ReferenceOr::Item(res))
-                        .is_some();
-                    if existing {
-                        ctx.error(Error::ResponseExists(StatusCode::Range(N)));
-                    };
-                }
-            } else {
-                tracing::debug!(type_name = type_name::<R>(), "no response info of type");
+            let responses = self.operation.responses.as_mut().unwrap();
+            if !t.hidden {
+                let existing = responses
+                    .responses
+                    .insert(StatusCode::Range(N), ReferenceOr::Item(res))
+                    .is_some();
+                if existing {
+                    in_context(|ctx| ctx.error(Error::ResponseExists(StatusCode::Range(N))));
+                };
             }
-        });
+        } else {
+            tracing::debug!(type_name = type_name::<R>(), "no response info of type");
+        }
 
         self
     }
